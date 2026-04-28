@@ -147,14 +147,14 @@ create_env_file() {
   ask_default "Введите пользователя БД" "kwork" POSTGRES_USER
   ask_default "Введите пароль БД" "kwork" POSTGRES_PASSWORD
   ask_default "Интервал парсинга (сек)" "45" PARSE_INTERVAL_SECONDS
-  ask_default "URL Kwork раздела IT" "https://kwork.ru/projects?category=it" KWORK_PROJECTS_URL
+  ask_default "URL Kwork проектов" "https://kwork.ru/projects" KWORK_PROJECTS_URL
   ask_default "Включить proxychains для всего трафика бота? (true|false)" "true" BOT_PROXYCHAINS_ENABLED
   ask_default "PROXYCHAINS SOCKS5 host" "host.docker.internal" PROXYCHAINS_SOCKS5_HOST
   ask_default "PROXYCHAINS SOCKS5 port" "1080" PROXYCHAINS_SOCKS5_PORT
   ask_default "Пускать DNS через proxychains? (true|false)" "false" PROXYCHAINS_PROXY_DNS
   ask_default "Требовать aiogram proxy обязательно? (true|false)" "false" TELEGRAM_PROXY_REQUIRED
   ask_default "URL прокси для aiogram (если нужен), иначе пусто" "" TELEGRAM_PROXY_URL
-  ask_default "AI провайдер (ollama|hf|gemini)" "ollama" AI_PROVIDER
+  ask_default "AI провайдер (ollama|hf|gemini)" "hf" AI_PROVIDER
   ask_default "Ollama модель" "qwen2.5:7b" OLLAMA_MODEL
   ask_default "Уровень логирования" "INFO" LOG_LEVEL
 
@@ -191,7 +191,11 @@ EOF
 
 start_stack() {
   print_info "Собираю и запускаю контейнеры..."
-  docker compose up -d --build
+  if [[ "${AI_PROVIDER}" == "ollama" ]]; then
+    docker compose --profile ollama up -d --build
+  else
+    docker compose up -d --build db bot
+  fi
   print_ok "Контейнеры запущены."
 }
 

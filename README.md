@@ -42,6 +42,8 @@ config/
 1. `cp .env.example .env`
 2. Заполните переменные в `.env`
 3. `docker compose up -d --build`
+4. Если нужен локальный Ollama, запускайте с профилем:
+   - `docker compose --profile ollama up -d --build`
 
 ## Telegram только через прокси
 
@@ -76,8 +78,8 @@ config/
    - установит проект в `/opt/kwork`;
    - установит Docker/Compose и `git` (если их нет);
    - запросит данные и создаст `.env`;
-   - поднимет контейнеры (`bot`, `db`, `ollama`);
-   - попробует подтянуть модель Ollama.
+  - поднимет контейнеры (`db`, `bot`);
+  - при `AI_PROVIDER=ollama` поднимет также `ollama` и попробует подтянуть модель.
 
 ## Обновление после заливки в GitHub
 
