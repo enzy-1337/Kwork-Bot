@@ -120,7 +120,25 @@ ask_default() {
   printf -v "${var_name}" "%s" "${value}"
 }
 
+ask_yes_no_default_no() {
+  local prompt="$1"
+  local answer=""
+  read -r -p "${prompt} [y/N]: " answer
+  case "${answer}" in
+    y|Y|yes|YES) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 create_env_file() {
+  if [[ -f "${ENV_FILE}" ]]; then
+    print_warn "Файл ${ENV_FILE} уже существует в ${INSTALL_DIR}."
+    if ! ask_yes_no_default_no "Хотите пересоздать ${ENV_FILE}?"; then
+      print_info "Использую существующий ${ENV_FILE}."
+      return
+    fi
+  fi
+
   print_info "Настройка .env (интерактивно)"
   ask_required "Введите BOT_TOKEN Telegram-бота" BOT_TOKEN
   ask_required "Введите OWNER_TELEGRAM_ID" OWNER_TELEGRAM_ID
