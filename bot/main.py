@@ -34,20 +34,37 @@ async def _init_forum_topics(
     )
     try:
         chat = await bot.get_chat(settings.telegram_forum_chat_id)
-        if not getattr(chat, "is_forum", False):
-            LOGGER.warning(
-                "TELEGRAM_FORUM_CHAT_ID=%s не является forum-чатом. "
-                "Forum mode отключен, сообщения будут отправляться владельцу.",
-                settings.telegram_forum_chat_id,
-            )
-            return None, None
-        ollama_thread_id = await forum_topics.ensure_ollama_topic(settings.ollama_topic_name)
-        return forum_topics, ollama_thread_id
+    except TelegramNetworkError as exc:
+        LOGGER.warning(
+            "Не удалось проверить forum-чат из-за сети: %s. "
+            "Forum mode оставлен включенным, повторная попытка будет при отправке заказов.",
+            exc,
+        )
+        return forum_topics, None
     except TelegramBadRequest as exc:
         LOGGER.warning("Forum mode disabled: TelegramBadRequest during startup: %s", exc)
         return None, None
+
+    if not getattr(chat, "is_forum", False):
+        LOGGER.warning(
+            "TELEGRAM_FORUM_CHAT_ID=%s не является forum-чатом. "
+            "Forum mode отключен, сообщения будут отправляться владельцу.",
+            settings.telegram_forum_chat_id,
+        )
+        return None, None
+
+    try:
+        ollama_thread_id = await forum_topics.ensure_ollama_topic(settings.ollama_topic_name)
+        return forum_topics, ollama_thread_id
     except TelegramNetworkError as exc:
-        LOGGER.warning("Forum mode disabled at startup due network error: %s", exc)
+        LOGGER.warning(
+            "Не удалось создать Ollama topic на старте из-за сети: %s. "
+            "Forum mode оставлен включенным, топики заказов будут создаваться при отправке.",
+            exc,
+        )
+        return forum_topics, None
+    except TelegramBadRequest as exc:
+        LOGGER.warning("Forum mode disabled during Ollama topic init: %s", exc)
         return None, None
 
 
