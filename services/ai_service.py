@@ -30,6 +30,21 @@ class AIService:
             LOGGER.exception("AI generation error: %s", exc)
             return self._fallback_reply(order, evaluation, style)
 
+    async def generate_free_text(self, prompt: str) -> str:
+        cleaned_prompt = prompt.strip()
+        if not cleaned_prompt:
+            return "Пустой запрос. Напишите текст после команды."
+        try:
+            if self.settings.ai_provider == "ollama":
+                return await self._generate_ollama(cleaned_prompt)
+            return (
+                "Сейчас активен не Ollama-провайдер. "
+                "Для свободной генерации включите AI_PROVIDER=ollama."
+            )
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.exception("Free text generation error: %s", exc)
+            return "Ошибка генерации. Проверьте доступность Ollama и повторите запрос."
+
     async def _generate_ollama(self, prompt: str) -> str:
         payload = {"model": self.settings.ollama_model, "prompt": prompt, "stream": False}
         timeout = aiohttp.ClientTimeout(total=30)
