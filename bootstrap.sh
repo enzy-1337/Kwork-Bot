@@ -34,13 +34,16 @@ clone_or_update_repo() {
   run_as_root "mkdir -p '${INSTALL_DIR}'"
 
   if [[ -d "${INSTALL_DIR}/.git" ]]; then
-    info "Репозиторий уже существует, обновляю..."
+    info "Репозиторий уже существует, синхронизирую с origin/main..."
+    git -C "${INSTALL_DIR}" remote set-url origin "${REPO_URL}" || true
     git -C "${INSTALL_DIR}" fetch --all --prune
-    git -C "${INSTALL_DIR}" checkout main || true
-    git -C "${INSTALL_DIR}" pull --rebase || true
+    git -C "${INSTALL_DIR}" checkout -B main origin/main
+    # В установочной директории не держим локальные правки: берем чистое состояние из GitHub.
+    git -C "${INSTALL_DIR}" reset --hard origin/main
+    git -C "${INSTALL_DIR}" clean -fd
   else
     info "Клонирую репозиторий ${REPO_URL}..."
-    run_as_root "rm -rf '${INSTALL_DIR}'/*"
+    run_as_root "rm -rf '${INSTALL_DIR}'/* '${INSTALL_DIR}'/.[!.]* '${INSTALL_DIR}'/..?* 2>/dev/null || true"
     git clone "${REPO_URL}" "${INSTALL_DIR}"
   fi
 
@@ -49,7 +52,7 @@ clone_or_update_repo() {
 
 run_installer() {
   cd "${INSTALL_DIR}"
-  chmod +x install.sh update.sh
+  chmod +x bootstrap.sh install.sh update.sh
   info "Запускаю основной установщик..."
   ./install.sh
 }
