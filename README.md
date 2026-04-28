@@ -121,6 +121,7 @@ config/
 - `FORUM_AUTO_CREATE_TOPICS=true`
 - `OLLAMA_TOPIC_NAME=Ollama`
 - `KWORK_COOKIE=<cookie из браузера, где вы авторизованы в kwork.ru>` (для кнопки отклика)
+- `OLLAMA_MODEL=qwen2.5:3b` для серверов с ~6 GB RAM (7b часто упирается в память и дает 500)
 
 Что делает бот:
 

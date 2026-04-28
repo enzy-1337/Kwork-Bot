@@ -229,7 +229,7 @@ create_env_file() {
   ask_default "Название Ollama-топика" "Ollama" OLLAMA_TOPIC_NAME
   ask_default "Cookie для авторизации на Kwork (для кнопки отклика), можно оставить пустым" "" KWORK_COOKIE
   ask_default "AI провайдер (ollama|hf|gemini)" "ollama" AI_PROVIDER
-  ask_default "Ollama модель" "qwen2.5:7b" OLLAMA_MODEL
+  ask_default "Ollama модель" "qwen2.5:3b" OLLAMA_MODEL
   ask_default "Уровень логирования" "INFO" LOG_LEVEL
 
   DATABASE_URL="postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}"
@@ -296,7 +296,7 @@ optional_ollama_pull() {
   if [[ -z "${ollama_model}" ]]; then
     ollama_model="$(get_env_value "OLLAMA_MODEL" "${ENV_FILE}")"
   fi
-  ollama_model="${ollama_model:-qwen2.5:7b}"
+  ollama_model="${ollama_model:-qwen2.5:3b}"
 
   if [[ "${ai_provider}" != "ollama" ]]; then
     return

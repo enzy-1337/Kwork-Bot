@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     ai_provider: Literal["ollama", "hf", "gemini"] = Field(default="ollama", alias="AI_PROVIDER")
     ollama_url: str = Field(default="http://ollama:11434/api/generate", alias="OLLAMA_URL")
-    ollama_model: str = Field(default="qwen2.5:7b", alias="OLLAMA_MODEL")
+    ollama_model: str = Field(default="qwen2.5:3b", alias="OLLAMA_MODEL")
     gemini_api_key: str | None = Field(default=None, alias="GEMINI_API_KEY")
     hf_api_token: str | None = Field(default=None, alias="HF_API_TOKEN")
     hf_model: str = Field(default="HuggingFaceH4/zephyr-7b-beta", alias="HF_MODEL")
