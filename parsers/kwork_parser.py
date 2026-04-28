@@ -80,6 +80,14 @@ class ParsedKworkOrder:
     is_urgent: bool
 
 
+@dataclass(slots=True)
+class KworkOrderStatus:
+    responses_count: int | None
+    assigned_to: str | None
+    is_completed: bool
+    raw_status: str | None
+
+
 class KworkParser:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -94,7 +102,14 @@ class KworkParser:
         html = await self._fetch_html_with_retry()
         return self._parse_orders(html)
 
+    async def fetch_order_status(self, order_url: str) -> KworkOrderStatus:
+        html = await self._fetch_url_with_retry(order_url)
+        return self._parse_order_status(html)
+
     async def _fetch_html_with_retry(self) -> str:
+        return await self._fetch_url_with_retry(self.settings.kwork_projects_url)
+
+    async def _fetch_url_with_retry(self, url: str) -> str:
         async for attempt in AsyncRetrying(
             reraise=True,
             stop=stop_after_attempt(3),
@@ -104,10 +119,69 @@ class KworkParser:
             with attempt:
                 timeout = aiohttp.ClientTimeout(total=self.settings.request_timeout_seconds)
                 async with aiohttp.ClientSession(timeout=timeout, headers=self.headers) as session:
-                    async with session.get(self.settings.kwork_projects_url) as response:
+                    async with session.get(url) as response:
                         response.raise_for_status()
                         return await response.text()
         return ""
+
+    @staticmethod
+    def _parse_order_status(html: str) -> KworkOrderStatus:
+        soup = BeautifulSoup(html, "html.parser")
+        text = soup.get_text(" ", strip=True)
+        lowered = text.lower()
+
+        responses_count: int | None = None
+        responses_patterns = (
+            r"(\d+)\s*отклик",
+            r"отклик[а-я]*\s*[:\-]?\s*(\d+)",
+            r"предложени[яй]\s*[:\-]?\s*(\d+)",
+        )
+        for pattern in responses_patterns:
+            match = re.search(pattern, lowered, flags=re.IGNORECASE)
+            if match:
+                responses_count = int(match.group(1))
+                break
+
+        is_completed = any(
+            marker in lowered
+            for marker in (
+                "заказ выполнен",
+                "проект завершен",
+                "проект завершён",
+                "заказ закрыт",
+                "исполнитель выбран",
+            )
+        )
+
+        assigned_to: str | None = None
+        assignee_patterns = (
+            r"(?:исполнитель|выполнил|назначен)\s*[:\-]?\s*@?([A-Za-z0-9_\-\.]{2,})",
+            r"(?:победитель|выбран)\s*[:\-]?\s*@?([A-Za-z0-9_\-\.]{2,})",
+        )
+        for pattern in assignee_patterns:
+            match = re.search(pattern, text, flags=re.IGNORECASE)
+            if match:
+                assigned_to = match.group(1).strip()
+                break
+
+        raw_status: str | None = None
+        status_patterns = (
+            r"(Заказ\s+(?:выполнен|закрыт)[^.!\n]{0,120})",
+            r"(Проект\s+(?:завершен|завершён)[^.!\n]{0,120})",
+            r"(Исполнитель\s+[^.!\n]{0,120})",
+        )
+        for pattern in status_patterns:
+            match = re.search(pattern, text, flags=re.IGNORECASE)
+            if match:
+                raw_status = match.group(1).strip()
+                break
+
+        return KworkOrderStatus(
+            responses_count=responses_count,
+            assigned_to=assigned_to,
+            is_completed=is_completed,
+            raw_status=raw_status,
+        )
 
     def _parse_orders(self, html: str) -> list[ParsedKworkOrder]:
         result = self._parse_from_state_data(html)

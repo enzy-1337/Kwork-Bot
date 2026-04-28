@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from database.models import GenerationHistory
 from database.repositories import OrdersRepository
 from keyboards.inline import generation_keyboard
+from parsers.kwork_parser import KworkParser
 from services.ai_service import AIService
 from services.scoring import evaluate_order
 
@@ -91,3 +92,40 @@ async def eta_callback(callback: CallbackQuery, session_factory: async_sessionma
 @router.callback_query(F.data.startswith("copy:"))
 async def copy_callback(callback: CallbackQuery) -> None:
     await callback.answer("Скопируйте текст из предыдущего сообщения", show_alert=True)
+
+
+@router.callback_query(F.data.startswith("refresh:"))
+async def refresh_order_callback(
+    callback: CallbackQuery,
+    session_factory: async_sessionmaker,
+    kwork_parser: KworkParser,
+) -> None:
+    if not callback.data:
+        return
+    _, order_id, _ = _parse_data(callback.data)
+    async with session_factory() as session:
+        order = await OrdersRepository(session).get_by_id(order_id)
+        if not order:
+            await callback.answer("Заказ не найден", show_alert=True)
+            return
+
+    await callback.answer("Обновляю данные объявления...")
+    status = await kwork_parser.fetch_order_status(order.url)
+
+    responses_text = (
+        str(status.responses_count)
+        if status.responses_count is not None
+        else "не удалось определить"
+    )
+    completed_text = "да" if status.is_completed else "нет/неизвестно"
+    assigned_text = status.assigned_to or "не найдено"
+    status_text = status.raw_status or "нет явной метки на странице"
+
+    await callback.message.answer(
+        "🔄 Обновление объявления\n\n"
+        f"🔗 {order.url}\n"
+        f"💬 Откликов: {responses_text}\n"
+        f"✅ Выполнен/закрыт: {completed_text}\n"
+        f"👤 Кому присвоили: {assigned_text}\n"
+        f"🧾 Статус на странице: {status_text}"
+    )

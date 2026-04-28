@@ -3,6 +3,16 @@ set -euo pipefail
 
 INSTALL_DIR="/opt/kwork"
 REPO_URL="https://github.com/enzy-1337/Kwork-Bot.git"
+ENV_FILE=".env"
+
+get_env_value() {
+  local key="$1"
+  local file="$2"
+  if [[ ! -f "${file}" ]]; then
+    return
+  fi
+  awk -F= -v k="${key}" '$1 == k { print substr($0, index($0, "=") + 1); exit }' "${file}"
+}
 
 if [[ ! -d "${INSTALL_DIR}" ]]; then
   echo "[INFO] Создаю директорию ${INSTALL_DIR}..."
@@ -25,6 +35,12 @@ git reset --hard origin/main
 git clean -fd
 
 echo "[INFO] Пересобираю и перезапускаю контейнеры..."
-docker compose up -d --build
+AI_PROVIDER="$(get_env_value "AI_PROVIDER" "${ENV_FILE}")"
+AI_PROVIDER="${AI_PROVIDER:-ollama}"
+if [[ "${AI_PROVIDER}" == "ollama" ]]; then
+  docker compose --profile ollama up -d --build
+else
+  docker compose up -d --build db bot
+fi
 
 echo "[OK] Обновление завершено."

@@ -223,7 +223,11 @@ create_env_file() {
   ask_default "Пускать DNS через proxychains? (true|false)" "false" PROXYCHAINS_PROXY_DNS
   ask_default "Требовать aiogram proxy обязательно? (true|false)" "false" TELEGRAM_PROXY_REQUIRED
   ask_default "URL прокси для aiogram (если нужен), иначе пусто" "" TELEGRAM_PROXY_URL
-  ask_default "AI провайдер (ollama|hf|gemini)" "hf" AI_PROVIDER
+  ask_default "ID forum-группы Telegram (chat_id вида -100..., пусто для ЛС)" "-1003906969456" TELEGRAM_FORUM_CHAT_ID
+  ask_default "Автосоздание топиков при старте? (true|false)" "true" FORUM_AUTO_CREATE_TOPICS
+  ask_default "Максимальная длина названия топика" "120" FORUM_TOPIC_TITLE_MAX_LENGTH
+  ask_default "Название Ollama-топика" "Ollama" OLLAMA_TOPIC_NAME
+  ask_default "AI провайдер (ollama|hf|gemini)" "ollama" AI_PROVIDER
   ask_default "Ollama модель" "qwen2.5:7b" OLLAMA_MODEL
   ask_default "Уровень логирования" "INFO" LOG_LEVEL
 
@@ -245,6 +249,10 @@ PROXYCHAINS_SOCKS5_PORT=${PROXYCHAINS_SOCKS5_PORT}
 PROXYCHAINS_PROXY_DNS=${PROXYCHAINS_PROXY_DNS}
 TELEGRAM_PROXY_REQUIRED=${TELEGRAM_PROXY_REQUIRED}
 TELEGRAM_PROXY_URL=${TELEGRAM_PROXY_URL}
+TELEGRAM_FORUM_CHAT_ID=${TELEGRAM_FORUM_CHAT_ID}
+FORUM_AUTO_CREATE_TOPICS=${FORUM_AUTO_CREATE_TOPICS}
+FORUM_TOPIC_TITLE_MAX_LENGTH=${FORUM_TOPIC_TITLE_MAX_LENGTH}
+OLLAMA_TOPIC_NAME=${OLLAMA_TOPIC_NAME}
 
 AI_PROVIDER=${AI_PROVIDER}
 OLLAMA_URL=http://ollama:11434/api/generate
@@ -263,7 +271,7 @@ start_stack() {
   if [[ -z "${ai_provider}" ]]; then
     ai_provider="$(get_env_value "AI_PROVIDER" "${ENV_FILE}")"
   fi
-  ai_provider="${ai_provider:-hf}"
+  ai_provider="${ai_provider:-ollama}"
   if [[ "${FORCE_OLLAMA}" == "true" || "${FORCE_OLLAMA}" == "1" ]]; then
     ai_provider="ollama"
   fi

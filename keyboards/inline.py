@@ -13,6 +13,7 @@ def order_actions_keyboard(order_id: int, order_url: str) -> InlineKeyboardMarku
             ],
             [
                 InlineKeyboardButton(text="⏱ Оценить сроки", callback_data=f"eta:{order_id}"),
+                InlineKeyboardButton(text="🔄 Обновить объявление", callback_data=f"refresh:{order_id}"),
             ],
         ]
     )

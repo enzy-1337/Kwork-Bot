@@ -10,6 +10,7 @@ from database.repositories import OrdersRepository, SettingsRepository, StatsRep
 from keyboards.inline import order_actions_keyboard
 from parsers.kwork_parser import KworkParser
 from services.filtering import order_matches_settings
+from services.forum_topics import ForumTopicsService
 from services.scoring import evaluate_order
 
 LOGGER = logging.getLogger(__name__)
@@ -23,12 +24,14 @@ class MonitoringService:
         owner_id: int,
         parse_interval_seconds: int,
         session_factory: async_sessionmaker,
+        forum_topics: ForumTopicsService | None = None,
     ) -> None:
         self.parser = parser
         self.bot = bot
         self.owner_id = owner_id
         self.parse_interval_seconds = parse_interval_seconds
         self.session_factory = session_factory
+        self.forum_topics = forum_topics
         self._stop_event = asyncio.Event()
         self._seen_cache: TTLCache[str, bool] = TTLCache(maxsize=20_000, ttl=60 * 60 * 4)
 
@@ -103,8 +106,13 @@ class MonitoringService:
             f"🏷 Категория:\n{order.category}\n\n"
             f"📝 Описание:\n{order.description[:1000]}"
         )
+        send_kwargs: dict[str, int | str | bool] = {"chat_id": self.owner_id}
+        if self.forum_topics:
+            thread_id = await self.forum_topics.ensure_topic(self.forum_topics.build_order_topic_title(order))
+            send_kwargs = {"chat_id": self.forum_topics.forum_chat_id, "message_thread_id": thread_id}
+
         await self.bot.send_message(
-            chat_id=self.owner_id,
+            **send_kwargs,
             text=text,
             reply_markup=order_actions_keyboard(order.id, order.url),
             disable_web_page_preview=True,

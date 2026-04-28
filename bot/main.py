@@ -6,10 +6,11 @@ from aiogram.client.session.aiohttp import AiohttpSession
 
 from config.settings import get_settings
 from database.session import create_engine_and_factory, init_db
-from handlers import admin, callbacks
+from handlers import admin, callbacks, forum
 from middlewares.owner_only import OwnerOnlyMiddleware
 from parsers.kwork_parser import KworkParser
 from services.ai_service import AIService
+from services.forum_topics import ForumTopicsService
 from services.monitoring import MonitoringService
 from utils.logging import setup_logging
 
@@ -46,20 +47,34 @@ async def main() -> None:
 
     dp.include_router(admin.router)
     dp.include_router(callbacks.router)
+    dp.include_router(forum.router)
 
     ai_service = AIService(settings)
     parser = KworkParser(settings)
+    forum_topics: ForumTopicsService | None = None
+    ollama_thread_id: int | None = None
+    if settings.telegram_forum_chat_id and settings.forum_auto_create_topics:
+        forum_topics = ForumTopicsService(
+            bot=bot,
+            forum_chat_id=settings.telegram_forum_chat_id,
+            topic_title_max_length=settings.forum_topic_title_max_length,
+        )
+        ollama_thread_id = await forum_topics.ensure_ollama_topic(settings.ollama_topic_name)
+
     monitor = MonitoringService(
         parser=parser,
         bot=bot,
         owner_id=settings.owner_telegram_id,
         parse_interval_seconds=settings.parse_interval_seconds,
         session_factory=session_factory,
+        forum_topics=forum_topics,
     )
 
     dp["session_factory"] = session_factory
     dp["owner_id"] = settings.owner_telegram_id
     dp["ai_service"] = ai_service
+    dp["kwork_parser"] = parser
+    dp["ollama_thread_id"] = ollama_thread_id
 
     monitor_task = asyncio.create_task(monitor.run_forever(), name="kwork-monitor")
     try:
