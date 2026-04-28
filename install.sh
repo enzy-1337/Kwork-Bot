@@ -71,9 +71,14 @@ ensure_docker_running() {
   run_as_root "systemctl start docker"
 }
 
+ensure_install_dir() {
+  print_info "Создаю директорию ${INSTALL_DIR}..."
+  run_as_root "mkdir -p '${INSTALL_DIR}'"
+  print_ok "Директория ${INSTALL_DIR} готова."
+}
+
 sync_project_to_opt() {
   print_info "Синхронизирую проект в ${INSTALL_DIR}..."
-  run_as_root "mkdir -p '${INSTALL_DIR}'"
   run_as_root "rsync -a --delete \
     --exclude '.git' \
     --exclude '.venv' \
@@ -188,6 +193,7 @@ main() {
   install_packages
   install_docker_if_needed
   ensure_docker_running
+  ensure_install_dir
   sync_project_to_opt
   create_env_file
   start_stack
