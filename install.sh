@@ -78,6 +78,16 @@ ensure_install_dir() {
 }
 
 sync_project_to_opt() {
+  local source_real install_real
+  source_real="$(readlink -f "${SOURCE_DIR}")"
+  install_real="$(readlink -f "${INSTALL_DIR}")"
+
+  if [[ "${source_real}" == "${install_real}" ]]; then
+    print_info "Исходники уже находятся в ${INSTALL_DIR}, синхронизация не требуется."
+    cd "${INSTALL_DIR}"
+    return
+  fi
+
   print_info "Синхронизирую проект в ${INSTALL_DIR}..."
   run_as_root "rsync -a --delete \
     --exclude '.git' \

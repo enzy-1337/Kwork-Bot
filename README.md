@@ -45,8 +45,19 @@ config/
 
 ## Установка одной командой (Debian 12/13)
 
+Запуск прямо с сервера одной командой (`curl + bash`):
+
+- `bash <(curl -fsSL https://raw.githubusercontent.com/enzy-1337/Kwork-Bot/main/bootstrap.sh)`
+
+Что делает `bootstrap.sh`:
+- создает `/opt/kwork`;
+- клонирует/обновляет репозиторий в `/opt/kwork`;
+- запускает `install.sh`, который устанавливает Docker/Compose, спрашивает `.env` и поднимает сервисы.
+
+Локальный запуск (если вы уже в репозитории):
+
 1. Дайте права на запуск:
-   - `chmod +x install.sh update.sh`
+   - `chmod +x bootstrap.sh install.sh update.sh`
 2. Запустите установщик:
    - `./install.sh`
 3. Скрипт:
