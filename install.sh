@@ -5,6 +5,9 @@ PROJECT_NAME="kwork-monitor-bot"
 ENV_FILE=".env"
 INSTALL_DIR="/opt/kwork"
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+NON_INTERACTIVE="${NON_INTERACTIVE:-false}"
+AUTO_MIGRATE_DOCKER_ROOT="${AUTO_MIGRATE_DOCKER_ROOT:-false}"
+FORCE_OLLAMA="${FORCE_OLLAMA:-false}"
 
 print_info() { echo -e "\033[1;34m[INFO]\033[0m $1"; }
 print_warn() { echo -e "\033[1;33m[WARN]\033[0m $1"; }
@@ -71,6 +74,56 @@ ensure_docker_running() {
   run_as_root "systemctl start docker"
 }
 
+get_free_gb_for_path() {
+  local path="$1"
+  df -BG --output=avail "${path}" | awk 'NR==2 { gsub(/[^0-9]/, "", $1); print $1 }'
+}
+
+migrate_docker_root_to_srv() {
+  local target_dir="/srv/docker"
+  print_info "Перенос Docker data-root в ${target_dir}..."
+  run_as_root "systemctl stop docker"
+  run_as_root "mkdir -p '${target_dir}'"
+  run_as_root "rsync -a /var/lib/docker/ '${target_dir}/'"
+  run_as_root "mkdir -p /etc/docker"
+  run_as_root "cat > /etc/docker/daemon.json <<'EOF'
+{
+  \"data-root\": \"${target_dir}\"
+}
+EOF"
+  run_as_root "systemctl daemon-reload"
+  run_as_root "systemctl start docker"
+  print_ok "Docker data-root перенесен в ${target_dir}."
+}
+
+check_and_offer_docker_root_migration() {
+  local root_dir free_gb min_gb=10
+  root_dir="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || true)"
+  if [[ -z "${root_dir}" ]]; then
+    print_warn "Не удалось определить Docker Root Dir. Пропускаю проверку диска."
+    return
+  fi
+
+  free_gb="$(get_free_gb_for_path "${root_dir}")"
+  free_gb="${free_gb:-0}"
+  print_info "Docker Root Dir: ${root_dir} (свободно: ${free_gb}G)"
+
+  if [[ "${root_dir}" == "/srv/docker" ]]; then
+    return
+  fi
+
+  if (( free_gb < min_gb )); then
+    print_warn "Свободного места для Docker мало (< ${min_gb}G)."
+    if [[ "${AUTO_MIGRATE_DOCKER_ROOT}" == "true" || "${AUTO_MIGRATE_DOCKER_ROOT}" == "1" ]]; then
+      migrate_docker_root_to_srv
+    elif ask_yes_no_default_no "Перенести Docker data-root в /srv/docker сейчас?"; then
+      migrate_docker_root_to_srv
+    else
+      print_warn "Перенос пропущен. Возможны ошибки 'no space left on device' при pull/build."
+    fi
+  fi
+}
+
 ensure_install_dir() {
   print_info "Создаю директорию ${INSTALL_DIR}..."
   run_as_root "mkdir -p '${INSTALL_DIR}'"
@@ -122,6 +175,9 @@ ask_default() {
 
 ask_yes_no_default_no() {
   local prompt="$1"
+  if [[ "${NON_INTERACTIVE}" == "true" || "${NON_INTERACTIVE}" == "1" ]]; then
+    return 1
+  fi
   local answer=""
   read -r -p "${prompt} [y/N]: " answer
   case "${answer}" in
@@ -142,6 +198,10 @@ get_env_value() {
 create_env_file() {
   if [[ -f "${ENV_FILE}" ]]; then
     print_warn "Файл ${ENV_FILE} уже существует в ${INSTALL_DIR}."
+    if [[ "${NON_INTERACTIVE}" == "true" || "${NON_INTERACTIVE}" == "1" ]]; then
+      print_info "NON_INTERACTIVE=true: использую существующий ${ENV_FILE}."
+      return
+    fi
     if ! ask_yes_no_default_no "Хотите пересоздать ${ENV_FILE}?"; then
       print_info "Использую существующий ${ENV_FILE}."
       return
@@ -204,6 +264,9 @@ start_stack() {
     ai_provider="$(get_env_value "AI_PROVIDER" "${ENV_FILE}")"
   fi
   ai_provider="${ai_provider:-hf}"
+  if [[ "${FORCE_OLLAMA}" == "true" || "${FORCE_OLLAMA}" == "1" ]]; then
+    ai_provider="ollama"
+  fi
 
   print_info "Собираю и запускаю контейнеры..."
   if [[ "${ai_provider}" == "ollama" ]]; then
@@ -262,6 +325,7 @@ main() {
   install_packages
   install_docker_if_needed
   ensure_docker_running
+  check_and_offer_docker_root_migration
   ensure_install_dir
   sync_project_to_opt
   create_env_file

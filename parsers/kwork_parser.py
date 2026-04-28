@@ -112,48 +112,78 @@ class KworkParser:
         soup = BeautifulSoup(html, "html.parser")
         cards = soup.select("div.project-item, div.wants-card, article")
         result: list[ParsedKworkOrder] = []
+        seen_external_ids: set[str] = set()
 
         for card in cards:
-            title_node = card.select_one("a.wants-card__header-title, a.project-name, a")
-            if not title_node:
+            order = self._extract_order_from_node(card)
+            if not order:
                 continue
-            title = title_node.get_text(" ", strip=True)
-            href = title_node.get("href") or ""
-            full_url = urljoin(BASE_URL, href)
-            ext_id = self._extract_external_id(full_url)
-            if not ext_id:
+            if order.external_id in seen_external_ids:
                 continue
+            seen_external_ids.add(order.external_id)
+            result.append(order)
 
-            description = (card.select_one("div.wants-card__description, .project-description") or card).get_text(
-                " ", strip=True
-            )
-            price_text = card.get_text(" ", strip=True)
-            combined_card_text = f"{title} {description} {price_text}".lower()
-            if not self._is_it_related(combined_card_text):
-                continue
-            min_budget, max_budget = self._extract_budget(price_text)
-            category = self._detect_category(f"{title} {description}")
-            is_urgent = any(word in price_text.lower() for word in ("срочно", "urgent"))
+        # Fallback: если вёрстка изменилась и карточки не нашлись, достаем по ссылкам проектов.
+        if not result:
+            for anchor in soup.select("a[href*='/projects/']"):
+                order = self._extract_order_from_node(anchor)
+                if not order:
+                    continue
+                if order.external_id in seen_external_ids:
+                    continue
+                seen_external_ids.add(order.external_id)
+                result.append(order)
 
-            result.append(
-                ParsedKworkOrder(
-                    external_id=ext_id,
-                    title=title,
-                    description=description[:2500],
-                    url=full_url,
-                    author="kwork_user",
-                    min_budget=min_budget,
-                    max_budget=max_budget,
-                    category=category,
-                    is_urgent=is_urgent,
-                )
-            )
+        if not result:
+            page_title = soup.title.get_text(" ", strip=True) if soup.title else "unknown"
+            LOGGER.warning("No orders parsed. Page title: %s", page_title)
         LOGGER.info("Parsed %s orders from Kwork", len(result))
         return result
 
     @staticmethod
     def _is_it_related(text: str) -> bool:
         return any(hint in text for hint in IT_HINTS)
+
+    def _extract_order_from_node(self, node: object) -> ParsedKworkOrder | None:
+        if not hasattr(node, "select_one"):
+            return None
+
+        title_node = node.select_one("a.wants-card__header-title, a.project-name, a[href*='/projects/'], a")
+        if not title_node:
+            return None
+
+        title = title_node.get_text(" ", strip=True) or "Без названия"
+        href = title_node.get("href") or ""
+        full_url = urljoin(BASE_URL, href)
+        ext_id = self._extract_external_id(full_url)
+        if not ext_id:
+            return None
+
+        description_node = node.select_one("div.wants-card__description, .project-description")
+        description = description_node.get_text(" ", strip=True) if description_node else ""
+        raw_text = node.get_text(" ", strip=True)
+        if not description:
+            description = raw_text
+
+        combined_text = f"{title} {description} {raw_text}".lower()
+        if not self._is_it_related(combined_text):
+            return None
+
+        min_budget, max_budget = self._extract_budget(raw_text)
+        category = self._detect_category(combined_text)
+        is_urgent = any(word in raw_text.lower() for word in ("срочно", "urgent"))
+
+        return ParsedKworkOrder(
+            external_id=ext_id,
+            title=title[:300],
+            description=description[:2500],
+            url=full_url,
+            author="kwork_user",
+            min_budget=min_budget,
+            max_budget=max_budget,
+            category=category,
+            is_urgent=is_urgent,
+        )
 
     @staticmethod
     def _extract_external_id(url: str) -> str | None:

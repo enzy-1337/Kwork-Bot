@@ -77,9 +77,20 @@ config/
 3. Скрипт:
    - установит проект в `/opt/kwork`;
    - установит Docker/Compose и `git` (если их нет);
+   - проверит `Docker Root Dir` и при нехватке места предложит перенос в `/srv/docker`;
    - запросит данные и создаст `.env`;
   - поднимет контейнеры (`db`, `bot`);
   - при `AI_PROVIDER=ollama` поднимет также `ollama` и попробует подтянуть модель.
+
+Нейнтерактивный режим установщика:
+
+- `NON_INTERACTIVE=true` — не задаёт вопросы (использует существующий `.env`).
+- `AUTO_MIGRATE_DOCKER_ROOT=true` — автоматически переносит Docker data-root в `/srv/docker`, если места мало.
+- `FORCE_OLLAMA=true` — принудительно запускает профиль `ollama` независимо от `AI_PROVIDER`.
+
+Пример:
+
+- `NON_INTERACTIVE=true AUTO_MIGRATE_DOCKER_ROOT=true FORCE_OLLAMA=true ./install.sh`
 
 ## Обновление после заливки в GitHub
 
