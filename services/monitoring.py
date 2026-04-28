@@ -109,12 +109,13 @@ class MonitoringService:
         )
         send_kwargs: dict[str, int | str | bool] = {"chat_id": self.owner_id}
         if self.forum_topics:
+            send_kwargs = {"chat_id": self.forum_topics.forum_chat_id}
             try:
                 thread_id = await self.forum_topics.ensure_topic(self.forum_topics.build_order_topic_title(order))
                 send_kwargs = {"chat_id": self.forum_topics.forum_chat_id, "message_thread_id": thread_id}
             except Exception as exc:  # noqa: BLE001
                 LOGGER.warning(
-                    "Forum topic creation failed for order %s, fallback to owner chat: %s",
+                    "Forum topic creation failed for order %s, fallback to forum general topic: %s",
                     order.external_id,
                     exc,
                 )

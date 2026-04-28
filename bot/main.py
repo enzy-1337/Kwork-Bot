@@ -64,6 +64,12 @@ async def _init_forum_topics(
         )
         return forum_topics, None
     except TelegramBadRequest as exc:
+        exc_text = str(exc).lower()
+        if "not enough rights to create a topic" in exc_text:
+            LOGGER.warning(
+                "Нет прав на создание тем. Буду отправлять заказы в General topic группы без создания новых тем."
+            )
+            return forum_topics, None
         LOGGER.warning("Forum mode disabled during Ollama topic init: %s", exc)
         return None, None
 
