@@ -12,6 +12,58 @@ from config.settings import Settings
 LOGGER = logging.getLogger(__name__)
 
 BASE_URL = "https://kwork.ru"
+IT_HINTS = (
+    "разработка и it",
+    "разработка",
+    "it",
+    "айти",
+    "программирование",
+    "разработчик",
+    "backend",
+    "frontend",
+    "fullstack",
+    "python",
+    "django",
+    "fastapi",
+    "flask",
+    "javascript",
+    "typescript",
+    "node",
+    "react",
+    "vue",
+    "php",
+    "laravel",
+    "wordpress",
+    "битрикс",
+    "1с",
+    "c#",
+    "java",
+    "kotlin",
+    "swift",
+    "go",
+    "sql",
+    "postgres",
+    "mysql",
+    "telegram",
+    "бот",
+    "parser",
+    "парсер",
+    "scraping",
+    "автоматизац",
+    "скрипт",
+    "api",
+    "интеграц",
+    "веб",
+    "сайт",
+    "лендинг",
+    "мобильн",
+    "ios",
+    "android",
+    "ai",
+    "gpt",
+    "llm",
+    "нейросет",
+)
 
 
 @dataclass(slots=True)
@@ -76,6 +128,9 @@ class KworkParser:
                 " ", strip=True
             )
             price_text = card.get_text(" ", strip=True)
+            combined_card_text = f"{title} {description} {price_text}".lower()
+            if not self._is_it_related(combined_card_text):
+                continue
             min_budget, max_budget = self._extract_budget(price_text)
             category = self._detect_category(f"{title} {description}")
             is_urgent = any(word in price_text.lower() for word in ("срочно", "urgent"))
@@ -95,6 +150,10 @@ class KworkParser:
             )
         LOGGER.info("Parsed %s orders from Kwork", len(result))
         return result
+
+    @staticmethod
+    def _is_it_related(text: str) -> bool:
+        return any(hint in text for hint in IT_HINTS)
 
     @staticmethod
     def _extract_external_id(url: str) -> str | None:

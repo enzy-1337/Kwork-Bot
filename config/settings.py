@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     database_url: str = Field(alias="DATABASE_URL")
 
     kwork_projects_url: str = Field(
-        default="https://kwork.ru/projects?category=it",
+        default="https://kwork.ru/projects",
         alias="KWORK_PROJECTS_URL",
     )
     parse_interval_seconds: int = Field(default=45, alias="PARSE_INTERVAL_SECONDS")
