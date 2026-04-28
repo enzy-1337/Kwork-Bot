@@ -6,11 +6,12 @@ from aiogram.client.session.aiohttp import AiohttpSession
 
 from config.settings import get_settings
 from database.session import create_engine_and_factory, init_db
-from handlers import admin, callbacks, forum
+from handlers import admin, apply, callbacks, forum
 from middlewares.owner_only import OwnerOnlyMiddleware
 from parsers.kwork_parser import KworkParser
 from services.ai_service import AIService
 from services.forum_topics import ForumTopicsService
+from services.kwork_apply import KworkApplyService
 from services.monitoring import MonitoringService
 from utils.logging import setup_logging
 
@@ -47,9 +48,11 @@ async def main() -> None:
 
     dp.include_router(admin.router)
     dp.include_router(callbacks.router)
+    dp.include_router(apply.router)
     dp.include_router(forum.router)
 
     ai_service = AIService(settings)
+    kwork_apply_service = KworkApplyService(settings)
     parser = KworkParser(settings)
     forum_topics: ForumTopicsService | None = None
     ollama_thread_id: int | None = None
@@ -73,6 +76,7 @@ async def main() -> None:
     dp["session_factory"] = session_factory
     dp["owner_id"] = settings.owner_telegram_id
     dp["ai_service"] = ai_service
+    dp["kwork_apply_service"] = kwork_apply_service
     dp["kwork_parser"] = parser
     dp["ollama_thread_id"] = ollama_thread_id
 

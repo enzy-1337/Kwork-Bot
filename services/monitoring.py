@@ -12,6 +12,7 @@ from parsers.kwork_parser import KworkParser
 from services.filtering import order_matches_settings
 from services.forum_topics import ForumTopicsService
 from services.scoring import evaluate_order
+from utils.markdown import escape_markdown_v2
 
 LOGGER = logging.getLogger(__name__)
 
@@ -95,16 +96,16 @@ class MonitoringService:
         if order.max_budget and order.max_budget != order.min_budget:
             budget = f"{order.min_budget or 0} ₽ (макс. {order.max_budget} ₽)"
         text = (
-            "🔥 Новый заказ на Kwork\n\n"
-            f"📌 Название:\n{order.title}\n\n"
-            f"👤 Автор:\n{order.author}\n\n"
-            f"💰 Бюджет:\n{budget}\n\n"
-            f"📊 Интересность:\n{evaluation.score}/10\n\n"
-            f"🎯 Вероятность получения:\n{evaluation.win_probability}%\n\n"
-            f"🧠 Сложность:\n{evaluation.complexity}\n\n"
-            f"⏱ Примерный срок:\n{evaluation.eta_text}\n\n"
-            f"🏷 Категория:\n{order.category}\n\n"
-            f"📝 Описание:\n{order.description[:1000]}"
+            "*🔥 Новый заказ на Kwork*\n\n"
+            f"*📌 Название:*\n{escape_markdown_v2(order.title)}\n\n"
+            f"*👤 Автор:*\n{escape_markdown_v2(order.author)}\n\n"
+            f"*💰 Бюджет:*\n{escape_markdown_v2(budget)}\n\n"
+            f"*📊 Интересность:*\n{escape_markdown_v2(str(evaluation.score))}/10\n\n"
+            f"*🎯 Вероятность получения:*\n{escape_markdown_v2(str(evaluation.win_probability))}%\n\n"
+            f"*🧠 Сложность:*\n{escape_markdown_v2(evaluation.complexity)}\n\n"
+            f"*⏱ Примерный срок:*\n{escape_markdown_v2(evaluation.eta_text)}\n\n"
+            f"*🏷 Категория:*\n{escape_markdown_v2(order.category)}\n\n"
+            f"*📝 Описание:*\n{escape_markdown_v2(order.description[:1000])}"
         )
         send_kwargs: dict[str, int | str | bool] = {"chat_id": self.owner_id}
         if self.forum_topics:
@@ -116,4 +117,5 @@ class MonitoringService:
             text=text,
             reply_markup=order_actions_keyboard(order.id, order.url),
             disable_web_page_preview=True,
+            parse_mode="MarkdownV2",
         )

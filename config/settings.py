@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     forum_auto_create_topics: bool = Field(default=True, alias="FORUM_AUTO_CREATE_TOPICS")
     forum_topic_title_max_length: int = Field(default=120, alias="FORUM_TOPIC_TITLE_MAX_LENGTH")
     ollama_topic_name: str = Field(default="Ollama", alias="OLLAMA_TOPIC_NAME")
+    kwork_cookie: str | None = Field(default=None, alias="KWORK_COOKIE")
     bot_proxychains_enabled: bool = Field(default=True, alias="BOT_PROXYCHAINS_ENABLED")
     telegram_proxy_url: str | None = Field(default=None, alias="TELEGRAM_PROXY_URL")
     telegram_proxy_required: bool = Field(default=True, alias="TELEGRAM_PROXY_REQUIRED")

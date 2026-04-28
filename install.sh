@@ -227,6 +227,7 @@ create_env_file() {
   ask_default "Автосоздание топиков при старте? (true|false)" "true" FORUM_AUTO_CREATE_TOPICS
   ask_default "Максимальная длина названия топика" "120" FORUM_TOPIC_TITLE_MAX_LENGTH
   ask_default "Название Ollama-топика" "Ollama" OLLAMA_TOPIC_NAME
+  ask_default "Cookie для авторизации на Kwork (для кнопки отклика), можно оставить пустым" "" KWORK_COOKIE
   ask_default "AI провайдер (ollama|hf|gemini)" "ollama" AI_PROVIDER
   ask_default "Ollama модель" "qwen2.5:7b" OLLAMA_MODEL
   ask_default "Уровень логирования" "INFO" LOG_LEVEL
@@ -253,6 +254,7 @@ TELEGRAM_FORUM_CHAT_ID=${TELEGRAM_FORUM_CHAT_ID}
 FORUM_AUTO_CREATE_TOPICS=${FORUM_AUTO_CREATE_TOPICS}
 FORUM_TOPIC_TITLE_MAX_LENGTH=${FORUM_TOPIC_TITLE_MAX_LENGTH}
 OLLAMA_TOPIC_NAME=${OLLAMA_TOPIC_NAME}
+KWORK_COOKIE=${KWORK_COOKIE}
 
 AI_PROVIDER=${AI_PROVIDER}
 OLLAMA_URL=http://ollama:11434/api/generate

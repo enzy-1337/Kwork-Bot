@@ -1,3 +1,3 @@
-from handlers import admin, callbacks, forum
+from handlers import admin, apply, callbacks, forum
 
-__all__ = ["admin", "callbacks", "forum"]
+__all__ = ["admin", "apply", "callbacks", "forum"]
