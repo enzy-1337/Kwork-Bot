@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  bot:
+    build: .
+    container_name: kwork-monitor-bot
+    env_file:
+      - .env
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    container_name: kwork-monitor-db
+    environment:
+      POSTGRES_DB: kwork_bot
+      POSTGRES_USER: kwork
+      POSTGRES_PASSWORD: kwork
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: kwork-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  ollama:

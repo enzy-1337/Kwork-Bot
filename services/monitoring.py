@@ -1,0 +1,111 @@
+import asyncio
+import logging
+
+from aiogram import Bot
+from cachetools import TTLCache
+from sqlalchemy.ext.asyncio import async_sessionmaker
+
+from database.models import ParsedOrder
+from database.repositories import OrdersRepository, SettingsRepository, StatsRepository
+from keyboards.inline import order_actions_keyboard
+from parsers.kwork_parser import KworkParser
+from services.filtering import order_matches_settings
+from services.scoring import evaluate_order
+
+LOGGER = logging.getLogger(__name__)
+
+
+class MonitoringService:
+    def __init__(
+        self,
+        parser: KworkParser,
+        bot: Bot,
+        owner_id: int,
+        parse_interval_seconds: int,
+        session_factory: async_sessionmaker,
+    ) -> None:
+        self.parser = parser
+        self.bot = bot
+        self.owner_id = owner_id
+        self.parse_interval_seconds = parse_interval_seconds
+        self.session_factory = session_factory
+        self._stop_event = asyncio.Event()
+        self._seen_cache: TTLCache[str, bool] = TTLCache(maxsize=20_000, ttl=60 * 60 * 4)
+
+    async def run_forever(self) -> None:
+        LOGGER.info("Monitoring loop started")
+        while not self._stop_event.is_set():
+            try:
+                await self._iteration()
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.exception("Monitoring iteration failed: %s", exc)
+            try:
+                await asyncio.wait_for(self._stop_event.wait(), timeout=self.parse_interval_seconds)
+            except TimeoutError:
+                continue
+
+    def stop(self) -> None:
+        self._stop_event.set()
+
+    async def _iteration(self) -> None:
+        fetched = await self.parser.fetch_orders()
+        async with self.session_factory() as session:
+            settings_repo = SettingsRepository(session)
+            orders_repo = OrdersRepository(session)
+            stats_repo = StatsRepository(session)
+            settings = await settings_repo.get_or_create(self.owner_id)
+
+            for item in fetched:
+                if item.external_id in self._seen_cache:
+                    continue
+                if await orders_repo.exists(item.external_id):
+                    self._seen_cache[item.external_id] = True
+                    continue
+
+                order = ParsedOrder(
+                    external_id=item.external_id,
+                    title=item.title,
+                    description=item.description,
+                    url=item.url,
+                    author=item.author,
+                    min_budget=item.min_budget,
+                    max_budget=item.max_budget,
+                    category=item.category,
+                    is_urgent=item.is_urgent,
+                )
+
+                if not order_matches_settings(order, settings):
+                    self._seen_cache[item.external_id] = True
+                    await stats_repo.increment("orders_filtered")
+                    continue
+
+                order = await orders_repo.save(order)
+                await stats_repo.increment("orders_sent")
+                self._seen_cache[item.external_id] = True
+                await self._send_new_order(order)
+
+            await session.commit()
+
+    async def _send_new_order(self, order: ParsedOrder) -> None:
+        evaluation = evaluate_order(order)
+        budget = f"{order.min_budget or 0} ₽"
+        if order.max_budget and order.max_budget != order.min_budget:
+            budget = f"{order.min_budget or 0} ₽ (макс. {order.max_budget} ₽)"
+        text = (
+            "🔥 Новый заказ на Kwork\n\n"
+            f"📌 Название:\n{order.title}\n\n"
+            f"👤 Автор:\n{order.author}\n\n"
+            f"💰 Бюджет:\n{budget}\n\n"
+            f"📊 Интересность:\n{evaluation.score}/10\n\n"
+            f"🎯 Вероятность получения:\n{evaluation.win_probability}%\n\n"
+            f"🧠 Сложность:\n{evaluation.complexity}\n\n"
+            f"⏱ Примерный срок:\n{evaluation.eta_text}\n\n"
+            f"🏷 Категория:\n{order.category}\n\n"
+            f"📝 Описание:\n{order.description[:1000]}"
+        )
+        await self.bot.send_message(
+            chat_id=self.owner_id,
+            text=text,
+            reply_markup=order_actions_keyboard(order.id, order.url),
+            disable_web_page_preview=True,
+        )
