@@ -37,10 +37,11 @@ clone_or_update_repo() {
     info "Репозиторий уже существует, синхронизирую с origin/main..."
     git -C "${INSTALL_DIR}" remote set-url origin "${REPO_URL}" || true
     git -C "${INSTALL_DIR}" fetch --all --prune
-    git -C "${INSTALL_DIR}" checkout -B main origin/main
-    # В установочной директории не держим локальные правки: берем чистое состояние из GitHub.
+    # Сначала очищаем локальные правки в текущей ветке, затем переключаемся на main.
     git -C "${INSTALL_DIR}" reset --hard origin/main
     git -C "${INSTALL_DIR}" clean -fd
+    git -C "${INSTALL_DIR}" checkout -B main origin/main
+    git -C "${INSTALL_DIR}" reset --hard origin/main
   else
     info "Клонирую репозиторий ${REPO_URL}..."
     run_as_root "rm -rf '${INSTALL_DIR}'/* '${INSTALL_DIR}'/.[!.]* '${INSTALL_DIR}'/..?* 2>/dev/null || true"

@@ -130,6 +130,15 @@ ask_yes_no_default_no() {
   esac
 }
 
+get_env_value() {
+  local key="$1"
+  local file="$2"
+  if [[ ! -f "${file}" ]]; then
+    return
+  fi
+  awk -F= -v k="${key}" '$1 == k { print substr($0, index($0, "=") + 1); exit }' "${file}"
+}
+
 create_env_file() {
   if [[ -f "${ENV_FILE}" ]]; then
     print_warn "Файл ${ENV_FILE} уже существует в ${INSTALL_DIR}."
@@ -190,8 +199,14 @@ EOF
 }
 
 start_stack() {
+  local ai_provider="${AI_PROVIDER:-}"
+  if [[ -z "${ai_provider}" ]]; then
+    ai_provider="$(get_env_value "AI_PROVIDER" "${ENV_FILE}")"
+  fi
+  ai_provider="${ai_provider:-hf}"
+
   print_info "Собираю и запускаю контейнеры..."
-  if [[ "${AI_PROVIDER}" == "ollama" ]]; then
+  if [[ "${ai_provider}" == "ollama" ]]; then
     docker compose --profile ollama up -d --build
   else
     docker compose up -d --build db bot
@@ -200,12 +215,22 @@ start_stack() {
 }
 
 optional_ollama_pull() {
-  if [[ "${AI_PROVIDER}" != "ollama" ]]; then
+  local ai_provider="${AI_PROVIDER:-}"
+  local ollama_model="${OLLAMA_MODEL:-}"
+  if [[ -z "${ai_provider}" ]]; then
+    ai_provider="$(get_env_value "AI_PROVIDER" "${ENV_FILE}")"
+  fi
+  if [[ -z "${ollama_model}" ]]; then
+    ollama_model="$(get_env_value "OLLAMA_MODEL" "${ENV_FILE}")"
+  fi
+  ollama_model="${ollama_model:-qwen2.5:7b}"
+
+  if [[ "${ai_provider}" != "ollama" ]]; then
     return
   fi
-  print_info "Проверяем загрузку модели Ollama (${OLLAMA_MODEL})..."
+  print_info "Проверяем загрузку модели Ollama (${ollama_model})..."
   print_warn "Первая загрузка модели может занять несколько минут."
-  docker compose exec -T ollama ollama pull "${OLLAMA_MODEL}" || print_warn "Не удалось автоматически подтянуть модель. Выполните вручную позже."
+  docker compose exec -T ollama ollama pull "${ollama_model}" || print_warn "Не удалось автоматически подтянуть модель. Выполните вручную позже."
 }
 
 print_final_notes() {
