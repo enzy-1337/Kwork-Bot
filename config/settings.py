@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     )
     parse_interval_seconds: int = Field(default=45, alias="PARSE_INTERVAL_SECONDS")
     request_timeout_seconds: int = Field(default=20, alias="REQUEST_TIMEOUT_SECONDS")
+    bot_proxychains_enabled: bool = Field(default=True, alias="BOT_PROXYCHAINS_ENABLED")
+    telegram_proxy_url: str | None = Field(default=None, alias="TELEGRAM_PROXY_URL")
+    telegram_proxy_required: bool = Field(default=True, alias="TELEGRAM_PROXY_REQUIRED")
 
     ai_provider: Literal["ollama", "hf", "gemini"] = Field(default="ollama", alias="AI_PROVIDER")
     ollama_url: str = Field(default="http://ollama:11434/api/generate", alias="OLLAMA_URL")

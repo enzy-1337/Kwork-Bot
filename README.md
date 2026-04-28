@@ -43,6 +43,18 @@ config/
 2. Заполните переменные в `.env`
 3. `docker compose up -d --build`
 
+## Telegram только через прокси
+
+- Реализация как в `c:/remna`: контейнер `bot` запускается через `proxychains4` (`scripts/bot-entrypoint.sh`).
+- Это проксирует весь исходящий TCP-трафик бота через SOCKS5 на хосте.
+- В `.env`:
+  - `BOT_PROXYCHAINS_ENABLED=true`
+  - `PROXYCHAINS_SOCKS5_HOST=host.docker.internal`
+  - `PROXYCHAINS_SOCKS5_PORT=1080`
+  - `PROXYCHAINS_PROXY_DNS=false` (обычно так безопаснее для Docker DNS).
+- В `docker-compose.yml` добавлен `host.docker.internal:host-gateway`.
+- Дополнительный режим `TELEGRAM_PROXY_URL` (aiogram session proxy) оставлен опционально, но при `BOT_PROXYCHAINS_ENABLED=true` обычно не нужен.
+
 ## Установка одной командой (Debian 12/13)
 
 Запуск прямо с сервера одной командой (`curl + bash`):
