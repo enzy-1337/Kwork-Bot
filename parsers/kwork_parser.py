@@ -147,11 +147,9 @@ class KworkParser:
         return result
 
     def _parse_from_state_data(self, html: str) -> list[ParsedKworkOrder]:
-        match = re.search(r"window\.stateData\s*=\s*(\{.*?\});window\.", html, flags=re.DOTALL)
-        if not match:
+        raw_json = self._extract_state_data_json(html)
+        if not raw_json:
             return []
-
-        raw_json = match.group(1)
         try:
             state_data = json.loads(raw_json)
         except json.JSONDecodeError:
@@ -214,6 +212,45 @@ class KworkParser:
             return value, value
         except ValueError:
             return None, None
+
+    @staticmethod
+    def _extract_state_data_json(html: str) -> str | None:
+        marker = "window.stateData="
+        start = html.find(marker)
+        if start == -1:
+            return None
+
+        i = start + len(marker)
+        while i < len(html) and html[i].isspace():
+            i += 1
+        if i >= len(html) or html[i] != "{":
+            return None
+
+        depth = 0
+        in_string = False
+        escaped = False
+        for j in range(i, len(html)):
+            ch = html[j]
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif ch == "\\":
+                    escaped = True
+                elif ch == '"':
+                    in_string = False
+                continue
+
+            if ch == '"':
+                in_string = True
+                continue
+            if ch == "{":
+                depth += 1
+                continue
+            if ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return html[i : j + 1]
+        return None
 
     @staticmethod
     def _is_it_related(text: str) -> bool:
