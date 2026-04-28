@@ -75,3 +75,18 @@ class StatsRepository:
 
     async def total_orders(self) -> int:
         return int(await self.session.scalar(select(func.count(ParsedOrder.id))) or 0)
+
+    async def get_metric(self, metric: str) -> int | None:
+        stmt = select(BotStats).where(BotStats.metric == metric)
+        row = await self.session.scalar(stmt)
+        return row.value if row is not None else None
+
+    async def set_metric(self, metric: str, value: int) -> None:
+        stmt = select(BotStats).where(BotStats.metric == metric)
+        row = await self.session.scalar(stmt)
+        if row is None:
+            row = BotStats(metric=metric, value=value)
+            self.session.add(row)
+            await self.session.flush()
+            return
+        row.value = value

@@ -3,8 +3,11 @@ from __future__ import annotations
 from io import BytesIO
 
 from aiogram import Bot, F, Router
+from aiogram.filters import Command
 from aiogram.types import BufferedInputFile, Message
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from database.repositories import StatsRepository
 from services.ai_service import AIService
 
 router = Router(name="forum")
@@ -12,6 +15,22 @@ router = Router(name="forum")
 
 def _thread_key(chat_id: int, thread_id: int) -> str:
     return f"{chat_id}:{thread_id}"
+
+
+def _ollama_thread_metric(chat_id: int) -> str:
+    return f"ollama_thread_id:{chat_id}"
+
+
+async def _get_saved_ollama_thread_id(session_factory: async_sessionmaker, chat_id: int) -> int | None:
+    async with session_factory() as session:
+        return await StatsRepository(session).get_metric(_ollama_thread_metric(chat_id))
+
+
+async def _save_ollama_thread_id(session_factory: async_sessionmaker, chat_id: int, thread_id: int) -> None:
+    async with session_factory() as session:
+        repo = StatsRepository(session)
+        await repo.set_metric(_ollama_thread_metric(chat_id), thread_id)
+        await session.commit()
 
 
 def _pick_file(message: Message) -> tuple[str, str] | None:
@@ -35,13 +54,33 @@ def _pick_file(message: Message) -> tuple[str, str] | None:
     return None
 
 
+@router.message(Command("bind_ollama"), F.message_thread_id)
+async def bind_ollama_topic(message: Message, session_factory: async_sessionmaker) -> None:
+    if not message.chat or not message.message_thread_id:
+        await message.answer("Команду нужно отправить внутри темы.")
+        return
+    await _save_ollama_thread_id(session_factory, message.chat.id, message.message_thread_id)
+    await message.answer("Текущая тема привязана как Ollama-тема. Теперь бот будет отвечать здесь после перезапуска тоже.")
+
+
 @router.message(F.message_thread_id)
-async def ollama_forum_message(message: Message, bot: Bot, ai_service: AIService, ollama_thread_id: int | None = None) -> None:
-    if not message.chat or ollama_thread_id is None or message.message_thread_id != ollama_thread_id:
+async def ollama_forum_message(
+    message: Message,
+    bot: Bot,
+    ai_service: AIService,
+    session_factory: async_sessionmaker,
+    ollama_thread_id: int | None = None,
+) -> None:
+    if not message.chat or not message.message_thread_id:
+        return
+
+    saved_thread_id = await _get_saved_ollama_thread_id(session_factory, message.chat.id)
+    target_thread_id = saved_thread_id or ollama_thread_id
+    if target_thread_id is None or message.message_thread_id != target_thread_id:
         return
 
     if (message.text or "").strip() == "/clear":
-        ai_service.clear_thread_history(_thread_key(message.chat.id, ollama_thread_id))
+        ai_service.clear_thread_history(_thread_key(message.chat.id, target_thread_id))
         await message.answer("Контекст этой темы очищен.")
         return
 
@@ -49,7 +88,7 @@ async def ollama_forum_message(message: Message, bot: Bot, ai_service: AIService
         await message.answer("⏳ Генерирую ответ...")
         result = await ai_service.generate_free_text(
             message.text,
-            thread_key=_thread_key(message.chat.id, ollama_thread_id),
+            thread_key=_thread_key(message.chat.id, target_thread_id),
         )
         await message.answer(result[:3900])
         return

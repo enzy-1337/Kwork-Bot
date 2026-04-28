@@ -1,11 +1,13 @@
 import asyncio
 import logging
+from typing import Any
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError
 
 from config.settings import get_settings
+from database.repositories import StatsRepository
 from database.session import create_engine_and_factory, init_db
 from handlers import admin, apply, callbacks, forum
 from middlewares.owner_only import OwnerOnlyMiddleware
@@ -19,10 +21,28 @@ from utils.logging import setup_logging
 LOGGER = logging.getLogger(__name__)
 
 
+def _ollama_thread_metric(chat_id: int) -> str:
+    return f"ollama_thread_id:{chat_id}"
+
+
+async def _load_saved_ollama_thread_id(session_factory, chat_id: int) -> int | None:
+    async with session_factory() as session:
+        stats_repo = StatsRepository(session)
+        return await stats_repo.get_metric(_ollama_thread_metric(chat_id))
+
+
+async def _save_ollama_thread_id(session_factory, chat_id: int, thread_id: int) -> None:
+    async with session_factory() as session:
+        stats_repo = StatsRepository(session)
+        await stats_repo.set_metric(_ollama_thread_metric(chat_id), thread_id)
+        await session.commit()
+
+
 async def _init_forum_topics(
     *,
     bot: Bot,
-    settings,
+    settings: Any,
+    session_factory,
 ) -> tuple[ForumTopicsService | None, int | None]:
     if not settings.telegram_forum_chat_id or not settings.forum_auto_create_topics:
         return None, None
@@ -53,8 +73,14 @@ async def _init_forum_topics(
         )
         return None, None
 
+    saved_thread_id = await _load_saved_ollama_thread_id(session_factory, settings.telegram_forum_chat_id)
+    if saved_thread_id:
+        LOGGER.info("Using saved Ollama topic thread_id=%s", saved_thread_id)
+        return forum_topics, saved_thread_id
+
     try:
         ollama_thread_id = await forum_topics.ensure_ollama_topic(settings.ollama_topic_name)
+        await _save_ollama_thread_id(session_factory, settings.telegram_forum_chat_id, ollama_thread_id)
         return forum_topics, ollama_thread_id
     except TelegramNetworkError as exc:
         LOGGER.warning(
@@ -114,7 +140,11 @@ async def main() -> None:
         ai_service = AIService(settings)
         kwork_apply_service = KworkApplyService(settings)
         parser = KworkParser(settings)
-        forum_topics, ollama_thread_id = await _init_forum_topics(bot=bot, settings=settings)
+        forum_topics, ollama_thread_id = await _init_forum_topics(
+            bot=bot,
+            settings=settings,
+            session_factory=session_factory,
+        )
 
         monitor = MonitoringService(
             parser=parser,

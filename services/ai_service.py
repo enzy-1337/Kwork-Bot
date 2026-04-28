@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 from random import randint
@@ -79,12 +80,33 @@ class AIService:
 
     async def _generate_ollama(self, prompt: str) -> str:
         payload = {"model": self.settings.ollama_model, "prompt": prompt, "stream": False}
-        timeout = aiohttp.ClientTimeout(total=30)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(self.settings.ollama_url, json=payload) as response:
-                response.raise_for_status()
-                data = await response.json()
-                return str(data.get("response", "")).strip()
+        timeout = aiohttp.ClientTimeout(total=45)
+        last_error: Exception | None = None
+        for attempt in range(1, 4):
+            try:
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async with session.post(self.settings.ollama_url, json=payload) as response:
+                        if response.status >= 400:
+                            body = (await response.text())[:600]
+                            raise RuntimeError(
+                                f"Ollama HTTP {response.status}: {body}"
+                            )
+                        data = await response.json()
+                        result = str(data.get("response", "")).strip()
+                        if not result:
+                            raise RuntimeError("Ollama вернул пустой response")
+                        return result
+            except Exception as exc:  # noqa: BLE001
+                last_error = exc
+                LOGGER.warning(
+                    "Ollama request failed (attempt %s/3, model=%s): %s",
+                    attempt,
+                    self.settings.ollama_model,
+                    exc,
+                )
+                if attempt < 3:
+                    await asyncio.sleep(1.2 * attempt)
+        raise RuntimeError(f"Ollama недоступен после 3 попыток: {last_error}")
 
     def _remember_thread_messages(self, thread_key: str, prompt: str, result: str) -> None:
         history = self._thread_histories.setdefault(thread_key, [])

@@ -18,7 +18,8 @@ def _panel_text() -> str:
         "/categories list|add <name>|remove <name>\n"
         "/keywords list|add <word>|remove <word>\n"
         "/blacklist list|add <word>|remove <word>\n"
-        "/ollama <запрос> - свободная генерация текста"
+        "/ollama <запрос> - свободная генерация текста\n"
+        "/bind_ollama - привязать текущую тему как Ollama-тему"
     )
 
 
