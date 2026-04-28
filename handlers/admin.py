@@ -4,6 +4,7 @@ from aiogram.types import Message
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from database.repositories import SettingsRepository, StatsRepository
+from services.ai_service import AIService
 
 router = Router(name="admin")
 
@@ -16,7 +17,8 @@ def _panel_text() -> str:
         "/settings <min> <max> <urgent 0|1> - обновить бюджет/срочность\n"
         "/categories list|add <name>|remove <name>\n"
         "/keywords list|add <word>|remove <word>\n"
-        "/blacklist list|add <word>|remove <word>"
+        "/blacklist list|add <word>|remove <word>\n"
+        "/ollama <запрос> - свободная генерация текста"
     )
 
 
@@ -115,3 +117,15 @@ async def blacklist_cmd(message: Message, session_factory: async_sessionmaker, o
             model.blacklist_words = values
         await session.commit()
     await message.answer("Черный список: " + (", ".join(model.blacklist_words) if model.blacklist_words else "пусто"))
+
+
+@router.message(Command("ollama"))
+async def ollama_cmd(message: Message, ai_service: AIService) -> None:
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) < 2 or not parts[1].strip():
+        await message.answer("Формат: /ollama <ваш запрос>")
+        return
+    prompt = parts[1].strip()
+    await message.answer("⏳ Генерирую ответ...")
+    result = await ai_service.generate_free_text(prompt)
+    await message.answer(f"🤖 Ответ Ollama:\n\n{result[:3900]}")

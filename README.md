@@ -107,6 +107,7 @@ config/
 - `/categories`
 - `/keywords`
 - `/blacklist`
+- `/ollama <запрос>` — свободная генерация через Ollama
 
 ## Как работает мониторинг
 
