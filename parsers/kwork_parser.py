@@ -1,4 +1,5 @@
 import logging
+import json
 import re
 from dataclasses import dataclass
 from urllib.parse import urljoin
@@ -109,9 +110,14 @@ class KworkParser:
         return ""
 
     def _parse_orders(self, html: str) -> list[ParsedKworkOrder]:
+        result = self._parse_from_state_data(html)
+        if result:
+            LOGGER.info("Parsed %s orders from Kwork (stateData)", len(result))
+            return result
+
         soup = BeautifulSoup(html, "html.parser")
         cards = soup.select("div.project-item, div.wants-card, article")
-        result: list[ParsedKworkOrder] = []
+        result = []
         seen_external_ids: set[str] = set()
 
         for card in cards:
@@ -139,6 +145,75 @@ class KworkParser:
             LOGGER.warning("No orders parsed. Page title: %s", page_title)
         LOGGER.info("Parsed %s orders from Kwork", len(result))
         return result
+
+    def _parse_from_state_data(self, html: str) -> list[ParsedKworkOrder]:
+        match = re.search(r"window\.stateData\s*=\s*(\{.*?\});window\.", html, flags=re.DOTALL)
+        if not match:
+            return []
+
+        raw_json = match.group(1)
+        try:
+            state_data = json.loads(raw_json)
+        except json.JSONDecodeError:
+            LOGGER.warning("Failed to decode window.stateData JSON")
+            return []
+
+        wants = []
+        wants_list_data = state_data.get("wantsListData", {})
+        if isinstance(wants_list_data, dict):
+            wants = wants_list_data.get("wants", []) or []
+
+        if not isinstance(wants, list):
+            return []
+
+        result: list[ParsedKworkOrder] = []
+        seen_external_ids: set[str] = set()
+        for item in wants:
+            if not isinstance(item, dict):
+                continue
+            external_id = str(item.get("id", "")).strip()
+            if not external_id or external_id in seen_external_ids:
+                continue
+
+            title = str(item.get("name", "")).strip() or "Без названия"
+            description = str(item.get("description", "")).strip()
+            combined_text = f"{title} {description}".lower()
+            if not self._is_it_related(combined_text):
+                continue
+
+            price_limit_raw = str(item.get("priceLimit", "")).strip()
+            min_budget, max_budget = self._extract_budget_from_price_limit(price_limit_raw)
+            category = self._detect_category(combined_text)
+            user = item.get("user", {}) if isinstance(item.get("user"), dict) else {}
+            author = str(user.get("username", "kwork_user")).strip() or "kwork_user"
+            is_urgent = any(word in combined_text for word in ("срочно", "urgent"))
+
+            result.append(
+                ParsedKworkOrder(
+                    external_id=external_id,
+                    title=title[:300],
+                    description=description[:2500],
+                    url=f"{BASE_URL}/projects/{external_id}",
+                    author=author,
+                    min_budget=min_budget,
+                    max_budget=max_budget,
+                    category=category,
+                    is_urgent=is_urgent,
+                )
+            )
+            seen_external_ids.add(external_id)
+
+        return result
+
+    @staticmethod
+    def _extract_budget_from_price_limit(price_limit: str) -> tuple[int | None, int | None]:
+        if not price_limit:
+            return None, None
+        try:
+            value = int(float(price_limit))
+            return value, value
+        except ValueError:
+            return None, None
 
     @staticmethod
     def _is_it_related(text: str) -> bool:
